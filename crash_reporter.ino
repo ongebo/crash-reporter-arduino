@@ -1,5 +1,13 @@
+#include <Http.h>
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
+
+char *deviceTag = "device1";
+
+// GSM/GPRS module pins
+unsigned int RX = 7;
+unsigned int TX = 6;
+unsigned int RST = 5;
 
 // Accelerometer pins
 const int xInput = A3;
@@ -34,6 +42,11 @@ void setup()
 void loop()
 {
     updateGPSLocation();
+    if (crashHasOccured())
+    {
+        sendJSONData();
+        delay(5000);
+    }
 }
 
 void updateGPSLocation()
@@ -113,4 +126,27 @@ int getAxisAcceleration(int axisPin)
         reading += analogRead(axisPin);
     }
     return reading / sampleSize;
+}
+
+void sendJSONData()
+{
+    Serial.println("Initializing HTTP...");
+    HTTP http(9600, RX, TX, RST);
+    Serial.println("Configuring APN...");
+    http.configureBearer("internet");
+    Serial.println("Connecting...");
+    http.connect();
+    Serial.println("Posting...");
+    char gpsLocation[100];
+    char requestBody[100];
+    char response[256];
+
+    sprintf(gpsLocation, "{\"latitude\": \"%f\", \"longitude\": \"%f\"}", gpsLatitude, gpsLongitude);
+    sprintf(requestBody, "{\"device_tag\": \"%s\", \"location\": %s}", deviceTag, gpsLocation);
+
+    Result result = http.post("https://ieye.herokuapp.com/report", requestBody, response);
+    Serial.println("Printing response...");
+    Serial.println(response);
+    http.disconnect();
+    Serial.println("Disconnected...");
 }
